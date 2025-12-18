@@ -1,22 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { QuizQuestion, FileData, Language } from "../types.ts";
 
-// Secure helper to access environment variables without crashing the browser
-const getEnv = (key: string): string | undefined => {
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env[key];
-    }
-  } catch (e) {
-    // process is not defined
-  }
-  return undefined;
-};
-
 const getAI = () => {
-  const apiKey = getEnv('API_KEY');
+  // Directly use process.env.API_KEY as per instructions and Vercel standards
+  const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    console.error("CRITICAL: API_KEY not found. Ensure it is set in Vercel Environment Variables.");
     throw new Error("API_KEY_MISSING");
   }
   return new GoogleGenAI({ apiKey });
@@ -31,7 +19,7 @@ export const generateChatResponse = async (
   try {
     const ai = getAI();
     const modelId = "gemini-3-flash-preview";
-    const contents = [];
+    const contents: any[] = [];
     
     if (fileData) {
       contents.push({
@@ -77,53 +65,57 @@ export const generateChatResponse = async (
 
     return response.text || (language === 'es' ? "Lo siento, no pude generar una respuesta." : "I apologize, I couldn't generate a response.");
   } catch (err: any) {
-    if (err.message === "API_KEY_MISSING") return language === 'es' ? "Error: Falta la API_KEY en la configuración de Vercel." : "Error: API_KEY missing in Vercel settings.";
-    throw err;
+    if (err.message === "API_KEY_MISSING") {
+      return language === 'es' 
+        ? "Error: No se detecta la API_KEY. Si ya la agregaste en Vercel, debes hacer un 'Redeploy' para que los cambios surtan efecto." 
+        : "Error: API_KEY not detected. If you already added it in Vercel, you must trigger a 'Redeploy' for changes to take effect.";
+    }
+    console.error("Gemini API Error:", err);
+    return language === 'es' ? "Ocurrió un error al consultar a la IA." : "An error occurred while querying the AI.";
   }
 };
 
 export const generateQuiz = async (fileData: FileData, language: Language): Promise<QuizQuestion[]> => {
-  const ai = getAI();
-  const modelId = "gemini-3-flash-preview";
+  try {
+    const ai = getAI();
+    const modelId = "gemini-3-flash-preview";
 
-  const schema = {
-    type: Type.ARRAY,
-    items: {
-      type: Type.OBJECT,
-      properties: {
-        question: { type: Type.STRING },
-        options: { type: Type.ARRAY, items: { type: Type.STRING } },
-        correctAnswer: { type: Type.STRING }
-      },
-      required: ["question", "options", "correctAnswer"]
-    }
-  };
-
-  const response = await ai.models.generateContent({
-    model: modelId,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { inlineData: { mimeType: fileData.mimeType, data: fileData.data } },
-          { text: language === 'es' ? "Genera un quiz de 5 preguntas sobre este archivo en español." : "Generate a 5-question quiz about this file in English." }
-        ]
+    const schema = {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          question: { type: Type.STRING },
+          options: { type: Type.ARRAY, items: { type: Type.STRING } },
+          correctAnswer: { type: Type.STRING }
+        },
+        required: ["question", "options", "correctAnswer"]
       }
-    ],
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: schema,
-      temperature: 0.3,
-    }
-  });
+    };
 
-  if (response.text) {
-    try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { inlineData: { mimeType: fileData.mimeType, data: fileData.data } },
+            { text: language === 'es' ? "Genera un quiz de 5 preguntas sobre este archivo en español basándote solo en su contenido." : "Generate a 5-question quiz about this file in English based strictly on its content." }
+          ]
+        }
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: schema,
+        temperature: 0.3,
+      }
+    });
+
+    if (response.text) {
       return JSON.parse(response.text.trim()) as QuizQuestion[];
-    } catch (e) {
-      console.error("Failed to parse quiz JSON", e);
-      return [];
     }
+  } catch (e) {
+    console.error("Failed to generate/parse quiz", e);
   }
   return [];
 };

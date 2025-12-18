@@ -189,7 +189,6 @@ const App: React.FC = () => {
       case AppStage.COLLECT_JOB:
         setUserData({ ...userData, jobTitle: text });
         setStage(AppStage.COLLECT_PHONE);
-        addSystemMessage(t.askJob); // Typo corrected: askJob used where askPhone should be? 
         addSystemMessage(t.askPhone);
         break;
       case AppStage.COLLECT_PHONE:
