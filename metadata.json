@@ -1,0 +1,5 @@
+{
+  "name": "Facilitator AI",
+  "description": "An intelligent training assistant that collects user data, reviews documents, answers questions, and administers quizzes based on uploaded content.",
+  "requestFramePermissions": []
+}
